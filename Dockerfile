@@ -1,67 +1,65 @@
-FROM alpine:3.4
-MAINTAINER Sylvain Desbureaux <sylvain@desbureaux.fr> #Original creator of this Dockerfile
-MAINTAINER Cedric Gatay <c.gatay@code-troopers.com>
+FROM debian:stretch
+MAINTAINER Josh Cox <josh 'at' webhosting.coop>
 
-# install packages &
-## OpenZwave installation &
-# grep git version of openzwave &
-# untar the files &
-# compile &
-# "install" in order to be found by domoticz &
-## Domoticz installation &
-# clone git source in src &
-# Domoticz needs the full history to be able to calculate the version string &
-# prepare makefile &
-# compile &
+ENV MKDOMOTICZ_UPDATED=20171117
+
+# install packages
+RUN apt-get update && apt-get install -y \
+	git \
+	libssl1.0.2 libssl-dev \
+	build-essential cmake \
+	libboost-all-dev \
+	libsqlite3-0 libsqlite3-dev \
+	curl libcurl3 libcurl4-openssl-dev \
+	libusb-0.1-4 libusb-dev \
+	zlib1g-dev \
+	libudev-dev \
+	python3-dev python3-pip \
+        fail2ban && \
+    # linux-headers-generic
+
+## OpenZwave installation
+# grep git version of openzwave
+git clone --depth 2 https://github.com/OpenZWave/open-zwave.git /src/open-zwave && \
+cd /src/open-zwave && \
+# compile
+make && \
+
+# "install" in order to be found by domoticz
+ln -s /src/open-zwave /src/open-zwave-read-only && \
+
+## Domoticz installation
+# clone git source in src
+git clone --depth 2 https://github.com/domoticz/domoticz.git /src/domoticz && \
+# Domoticz needs the full history to be able to calculate the version string
+cd /src/domoticz && \
+git fetch --unshallow && \
+# prepare makefile
+cmake -DCMAKE_BUILD_TYPE=Release . && \
+# compile
+make && \
+# Install
+# install -m 0555 domoticz /usr/local/bin/domoticz && \
+cd /tmp && \
+# Cleanup
+# rm -Rf /src/domoticz && \
+
+# ouimeaux
+pip3 install -U ouimeaux && \
+
 # remove git and tmp dirs
+apt-get remove -y git cmake linux-headers-amd64 build-essential libssl-dev libboost-dev libboost-thread-dev libboost-system-dev libsqlite3-dev libcurl4-openssl-dev libusb-dev zlib1g-dev libudev-dev && \
+   apt-get autoremove -y && \ 
+   apt-get clean && \
+   rm -rf /var/lib/apt/lists/*
 
-ARG VCS_REF
-ARG BUILD_DATE
-
-ENV BUILD_BRANCH=6bc9850f
-
-LABEL org.label-schema.vcs-ref=$VCS_REF \
-      org.label-schema.vcs-url="https://github.com/domoticz/domoticz" \
-      org.label-schema.url="https://domoticz.com/" \
-      org.label-schema.name="Domoticz" \
-      org.label-schema.docker.dockerfile="/Dockerfile" \
-      org.label-schema.license="GPLv3" \
-      org.label-schema.build-date=$BUILD_DATE
-
-RUN apk add --no-cache git \
-	 git \
-	 tzdata \
-	 libssl1.0 openssl-dev \
-	 build-base cmake \
-	 boost-dev \
-	 boost-thread \
-	 boost-system \
-	 boost-date_time \
-	 sqlite sqlite-dev \
-	 curl libcurl curl-dev \
-	 libusb libusb-dev \
-	 coreutils \
-	 zlib zlib-dev \
-	 udev eudev-dev \
-	 python3-dev \
-	 linux-headers && \
-	 cp /usr/share/zoneinfo/Europe/Paris /etc/localtime && \
-	 git clone --depth 2 https://github.com/OpenZWave/open-zwave.git /src/open-zwave && \
-	 cd /src/open-zwave && \
-	 make && \
-	 ln -s /src/open-zwave /src/open-zwave-read-only && \
-	 git clone -b ${BRANCH_NAME:-master} --depth 2 https://github.com/domoticz/domoticz.git /src/domoticz && \
-	 cd /src/domoticz && \
-	 git fetch --unshallow && \
-	 cmake -DCMAKE_BUILD_TYPE=Release . && \
-	 make && \
-	 rm -rf /src/domoticz/.git && \
-	 rm -rf /src/open-zwave/.git && \
-	 apk del git tzdata cmake linux-headers libusb-dev zlib-dev openssl-dev boost-dev sqlite-dev build-base eudev-dev coreutils curl-dev python3-dev
 
 VOLUME /config
 
 EXPOSE 8080
 
-ENTRYPOINT ["/src/domoticz/domoticz", "-dbase", "/config/domoticz.db", "-log", "/config/domoticz.log"]
-CMD ["-www", "8080"]
+COPY start.sh /start.sh
+
+#ENTRYPOINT ["/src/domoticz/domoticz", "-dbase", "/config/domoticz.db", "-log", "/config/domoticz.log"]
+#CMD ["-www", "8080"]
+CMD [ "/start.sh" ]
